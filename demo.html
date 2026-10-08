@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
+    <title>DEMO</title>
+
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/leaflet@2.0.0-alpha.1/dist/leaflet.css"
+        integrity="sha256-P+hWJNlpL+GBSRYC7cdsDbQH91URmpDeOzLp7DbFRtE="
+        crossorigin=""
+    >
+
+    <script type="importmap">
+    {
+        "imports": {
+            "leaflet": "https://cdn.jsdelivr.net/npm/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+        },
+        "integrity": {
+            "https://cdn.jsdelivr.net/npm/leaflet@2.0.0-alpha.1/dist/leaflet.js":
+                "sha256-gj5JhNAaMi6LCs+jVFOk8sXDe1sWSS2Zlc87m+trLiQ="
+        }
+    }
+    </script>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #map {
+            height: 500px;
+            margin-top: 20px;
+        }
+
+        #addCircle {
+            padding: 10px 18px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .circle-control {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            background: #f7f7f7;
+        }
+
+        .circle-control h3 {
+            margin-top: 0;
+        }
+
+        .coordinate-row,
+        .color-row {
+            margin-bottom: 8px;
+        }
+
+        .circle-control input {
+            width: 100px;
+            padding: 5px;
+        }
+
+        .circle-control button {
+            padding: 6px 12px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+
+        .percentage-total {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .valid {
+            color: green;
+        }
+
+        .invalid {
+            color: red;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <button id="addCircle">
+        + Add Circle
+    </button>
+
+    <div id="circleControls"></div>
+
+    <div id="map"></div>
+
+
+    <script type="module">
+
+        import {
+            LeafletMap,
+            TileLayer,
+            Polygon
+        } from 'leaflet';
+
+
+        // =====================================================
+        // MAP
+        // =====================================================
+
+        const map = new LeafletMap('map')
+            .setView(
+                [54.731152404718806, 25.263506011004527],
+                18
+            );
+
+
+        new TileLayer(
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            {
+                maxZoom: 19,
+
+                referrerPolicy:
+                    'strict-origin-when-cross-origin',
+
+                attribution:
+                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+            }
+        ).addTo(map);
+
+
+        // =====================================================
+        // CIRCLE STORAGE
+        // =====================================================
+
+        const circles = [];
+
+        let circleCounter = 0;
+
+
+        // =====================================================
+        // DEFAULT VALUES
+        // =====================================================
+
+        const defaultValues = {
+            latitude: 54.731152404718806,
+            longitude: 25.263506011004527,
+
+            yellow: 10,
+            green: 20,
+            blue: 20,
+            red: 20,
+            orange: 30
+        };
+
+
+        // =====================================================
+        // CREATE CIRCLE
+        // =====================================================
+
+        function drawCircle(circleData) {
+
+            // Remove existing sectors first
+            circleData.sectors.forEach(sector => {
+                map.removeLayer(sector);
+            });
+
+            circleData.sectors = [];
+
+
+            const latitude =
+                circleData.latitude;
+
+            const longitude =
+                circleData.longitude;
+
+            const radius = 5;
+
+
+            const colors = [
+                {
+                    color: 'yellow',
+                    percentage: circleData.yellow
+                },
+                {
+                    color: 'green',
+                    percentage: circleData.green
+                },
+                {
+                    color: 'blue',
+                    percentage: circleData.blue
+                },
+                {
+                    color: 'red',
+                    percentage: circleData.red
+                },
+                {
+                    color: 'orange',
+                    percentage: circleData.orange
+                }
+            ];
+
+
+            let startAngle = 0;
+
+
+            colors.forEach(colorData => {
+
+                if (colorData.percentage <= 0) {
+                    return;
+                }
+
+
+                const angle =
+                    colorData.percentage / 100 * 360;
+
+
+                const endAngle =
+                    startAngle + angle;
+
+
+                const points = [];
+
+                // Center
+                points.push([
+                    latitude,
+                    longitude
+                ]);
+
+
+                const steps =
+                    Math.max(
+                        2,
+                        Math.ceil(angle / 5)
+                    );
+
+
+                for (
+                    let i = 0;
+                    i <= steps;
+                    i++
+                ) {
+
+                    const currentAngle =
+                        startAngle +
+                        angle * i / steps;
+
+
+                    const radians =
+                        currentAngle *
+                        Math.PI / 180;
+
+
+                    const lat =
+                        latitude +
+                        (radius / 111320) *
+                        Math.cos(radians);
+
+
+                    const lng =
+                        longitude +
+                        (
+                            radius /
+                            (
+                                111320 *
+                                Math.cos(
+                                    latitude *
+                                    Math.PI / 180
+                                )
+                            )
+                        ) *
+                        Math.sin(radians);
+
+
+                    points.push([
+                        lat,
+                        lng
+                    ]);
+                }
+
+
+                const sector =
+                    new Polygon(
+                        points,
+                        {
+                            color: colorData.color,
+                            fillColor: colorData.color,
+                            fillOpacity: 0.8,
+                            weight: 1
+                        }
+                    ).addTo(map);
+
+
+                circleData.sectors.push(sector);
+
+
+                startAngle = endAngle;
+
+            });
+        }
+
+
+        // =====================================================
+        // CREATE CONTROL PANEL
+        // =====================================================
+
+        function createControlPanel(circleData) {
+
+            const container =
+                document.getElementById(
+                    'circleControls'
+                );
+
+
+            const panel =
+                document.createElement('div');
+
+
+            panel.className =
+                'circle-control';
+
+
+            panel.id =
+                `circle-control-${circleData.id}`;
+
+
+            panel.innerHTML = `
+
+                <h3>
+                    Circle ${circleData.id}
+                </h3>
+
+
+                <div class="coordinate-row">
+                    <label>
+                        Latitude:
+                        <input
+                            type="number"
+                            step="any"
+                            class="latitude"
+                            value="${circleData.latitude}"
+                        >
+                    </label>
+                </div>
+
+
+                <div class="coordinate-row">
+                    <label>
+                        Longitude:
+                        <input
+                            type="number"
+                            step="any"
+                            class="longitude"
+                            value="${circleData.longitude}"
+                        >
+                    </label>
+                </div>
+
+
+                <div class="color-row">
+                    <label>
+                        🟡 Yellow:
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="yellow"
+                            value="${circleData.yellow}"
+                        >
+                        %
+                    </label>
+                </div>
+
+
+                <div class="color-row">
+                    <label>
+                        🟢 Green:
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="green"
+                            value="${circleData.green}"
+                        >
+                        %
+                    </label>
+                </div>
+
+
+                <div class="color-row">
+                    <label>
+                        🔵 Blue:
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="blue"
+                            value="${circleData.blue}"
+                        >
+                        %
+                    </label>
+                </div>
+
+
+                <div class="color-row">
+                    <label>
+                        🔴 Red:
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="red"
+                            value="${circleData.red}"
+                        >
+                        %
+                    </label>
+                </div>
+
+
+                <div class="color-row">
+                    <label>
+                        🟠 Orange:
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="orange"
+                            value="${circleData.orange}"
+                        >
+                        %
+                    </label>
+                </div>
+
+
+                <div class="percentage-total">
+                    Total:
+                    <span class="total">
+                        100
+                    </span>%
+                </div>
+
+
+                <button class="update">
+                    Update Circle
+                </button>
+
+
+                <button class="remove">
+                    Remove Circle
+                </button>
+
+            `;
+
+
+            container.appendChild(panel);
+
+
+            // =============================================
+            // INPUT REFERENCES
+            // =============================================
+
+            const latitudeInput =
+                panel.querySelector('.latitude');
+
+            const longitudeInput =
+                panel.querySelector('.longitude');
+
+            const yellowInput =
+                panel.querySelector('.yellow');
+
+            const greenInput =
+                panel.querySelector('.green');
+
+            const blueInput =
+                panel.querySelector('.blue');
+
+            const redInput =
+                panel.querySelector('.red');
+
+            const orangeInput =
+                panel.querySelector('.orange');
+
+            const totalDisplay =
+                panel.querySelector('.total');
+
+
+            // =============================================
+            // UPDATE TOTAL
+            // =============================================
+
+            function updateTotal() {
+
+                const total =
+                    Number(yellowInput.value) +
+                    Number(greenInput.value) +
+                    Number(blueInput.value) +
+                    Number(redInput.value) +
+                    Number(orangeInput.value);
+
+
+                totalDisplay.textContent =
+                    total;
+
+
+                if (total === 100) {
+
+                    totalDisplay.className =
+                        'total valid';
+
+                } else {
+
+                    totalDisplay.className =
+                        'total invalid';
+
+                }
+
+            }
+
+
+            [
+                yellowInput,
+                greenInput,
+                blueInput,
+                redInput,
+                orangeInput
+            ].forEach(input => {
+
+                input.addEventListener(
+                    'input',
+                    updateTotal
+                );
+
+            });
+
+
+            // =============================================
+            // UPDATE CIRCLE
+            // =============================================
+
+            panel
+                .querySelector('.update')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        const latitude =
+                            Number(
+                                latitudeInput.value
+                            );
+
+                        const longitude =
+                            Number(
+                                longitudeInput.value
+                            );
+
+
+                        const yellow =
+                            Number(
+                                yellowInput.value
+                            );
+
+                        const green =
+                            Number(
+                                greenInput.value
+                            );
+
+                        const blue =
+                            Number(
+                                blueInput.value
+                            );
+
+                        const red =
+                            Number(
+                                redInput.value
+                            );
+
+                        const orange =
+                            Number(
+                                orangeInput.value
+                            );
+
+
+                        const total =
+                            yellow +
+                            green +
+                            blue +
+                            red +
+                            orange;
+
+
+                        // Validate coordinates
+
+                        if (
+                            !Number.isFinite(latitude) ||
+                            latitude < -90 ||
+                            latitude > 90
+                        ) {
+
+                            alert(
+                                'Latitude must be between -90 and 90.'
+                            );
+
+                            return;
+                        }
+
+
+                        if (
+                            !Number.isFinite(longitude) ||
+                            longitude < -180 ||
+                            longitude > 180
+                        ) {
+
+                            alert(
+                                'Longitude must be between -180 and 180.'
+                            );
+
+                            return;
+                        }
+
+
+                        // Validate percentages
+
+                        if (total !== 100) {
+
+                            alert(
+                                'The color percentages must add up to exactly 100%.'
+                            );
+
+                            return;
+                        }
+
+
+                        // Save new values
+
+                        circleData.latitude =
+                            latitude;
+
+                        circleData.longitude =
+                            longitude;
+
+                        circleData.yellow =
+                            yellow;
+
+                        circleData.green =
+                            green;
+
+                        circleData.blue =
+                            blue;
+
+                        circleData.red =
+                            red;
+
+                        circleData.orange =
+                            orange;
+
+
+                        // Redraw
+
+                        drawCircle(circleData);
+
+
+                        // Move map to circle
+
+                        map.setView(
+                            [
+                                latitude,
+                                longitude
+                            ],
+                            18
+                        );
+
+                    }
+                );
+
+
+            // =============================================
+            // REMOVE CIRCLE
+            // =============================================
+
+            panel
+                .querySelector('.remove')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        // Remove map sectors
+
+                        circleData.sectors
+                            .forEach(sector => {
+
+                                map.removeLayer(
+                                    sector
+                                );
+
+                            });
+
+
+                        // Remove from array
+
+                        const index =
+                            circles.indexOf(
+                                circleData
+                            );
+
+
+                        if (index !== -1) {
+
+                            circles.splice(
+                                index,
+                                1
+                            );
+
+                        }
+
+
+                        // Remove UI
+
+                        panel.remove();
+
+                    }
+                );
+
+
+            // Initial calculation
+
+            updateTotal();
+        }
+
+
+        // =====================================================
+        // ADD NEW CIRCLE
+        // =====================================================
+
+        document
+            .getElementById('addCircle')
+            .addEventListener(
+                'click',
+                () => {
+
+                    circleCounter++;
+
+
+                    const circleData = {
+
+                        id: circleCounter,
+
+                        latitude:
+                            defaultValues.latitude,
+
+                        longitude:
+                            defaultValues.longitude,
+
+                        yellow:
+                            defaultValues.yellow,
+
+                        green:
+                            defaultValues.green,
+
+                        blue:
+                            defaultValues.blue,
+
+                        red:
+                            defaultValues.red,
+
+                        orange:
+                            defaultValues.orange,
+
+                        sectors: []
+
+                    };
+
+
+                    circles.push(
+                        circleData
+                    );
+
+
+                    createControlPanel(
+                        circleData
+                    );
+
+
+                    drawCircle(
+                        circleData
+                    );
+
+                }
+            );
+
+    </script>
+
+</body>
+</html>

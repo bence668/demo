@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
+    <title>DEMO 2</title>
+
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/leaflet@2.0.0-alpha.1/dist/leaflet.css"
+        integrity="sha256-P+hWJNlpL+GBSRYC7cdsDbQH91URmpDeOzLp7DbFRtE="
+        crossorigin=""
+    >
+
+    <script type="importmap">
+    {
+        "imports": {
+            "leaflet": "https://cdn.jsdelivr.net/npm/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+        },
+        "integrity": {
+            "https://cdn.jsdelivr.net/npm/leaflet@2.0.0-alpha.1/dist/leaflet.js":
+                "sha256-gj5JhNAaMi6LCs+jVFOk8sXDe1sWSS2Zlc87m+trLiQ="
+        }
+    }
+    </script>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #map {
+            height: 500px;
+            margin-top: 20px;
+        }
+
+        #addCircle {
+            padding: 10px 18px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .circle-control {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            background: #f7f7f7;
+        }
+
+        .circle-control h3 {
+            margin-top: 0;
+        }
+
+        .coordinate-row,
+        .color-row {
+            margin-bottom: 8px;
+        }
+
+        .circle-control input {
+            width: 100px;
+            padding: 5px;
+        }
+
+        .circle-control button {
+            padding: 6px 12px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+
+        .percentage-total {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .valid {
+            color: green;
+        }
+
+        .invalid {
+            color: red;
+        }
+
+        .color-preview {
+            display: inline-block;
+            width: 35px;
+            height: 35px;
+            border: 1px solid #555;
+            border-radius: 50%;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <button id="addCircle">
+        + Add Circle
+    </button>
+
+    <div id="circleControls"></div>
+
+    <div id="map"></div>
+
+
+    <script type="module">
+
+        import {
+            LeafletMap,
+            TileLayer,
+            Circle
+        } from 'leaflet';
+
+
+        // =====================================================
+        // MAP
+        // =====================================================
+
+        const map = new LeafletMap('map')
+            .setView(
+                [54.731152404718806, 25.263506011004527],
+                18
+            );
+
+
+        new TileLayer(
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            {
+                maxZoom: 19,
+
+                referrerPolicy:
+                    'strict-origin-when-cross-origin',
+
+                attribution:
+                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+            }
+        ).addTo(map);
+
+
+        // =====================================================
+        // CIRCLE STORAGE
+        // =====================================================
+
+        const circles = [];
+
+        let circleCounter = 0;
+
+
+        // =====================================================
+        // DEFAULT VALUES
+        // =====================================================
+
+        const defaultValues = {
+
+            latitude:
+                54.731152404718806,
+
+            longitude:
+                25.263506011004527,
+
+            yellow: 10,
+
+            green: 20,
+
+            blue: 20,
+
+            red: 20,
+
+            orange: 30
+
+        };
+
+
+        // =====================================================
+        // RGB VALUES
+        // =====================================================
+
+        const colorRGB = {
+
+            yellow: [255, 255, 0],
+
+            green: [0, 128, 0],
+
+            blue: [0, 0, 255],
+
+            red: [255, 0, 0],
+
+            orange: [255, 165, 0]
+
+        };
+
+
+        // =====================================================
+        // CALCULATE MIXED COLOR
+        // =====================================================
+
+        function calculateMixedColor(circleData) {
+
+            const total =
+                circleData.yellow +
+                circleData.green +
+                circleData.blue +
+                circleData.red +
+                circleData.orange;
+
+
+            if (total === 0) {
+                return '#000000';
+            }
+
+
+            let red = 0;
+            let green = 0;
+            let blue = 0;
+
+
+            const colors = [
+                ['yellow', circleData.yellow],
+                ['green', circleData.green],
+                ['blue', circleData.blue],
+                ['red', circleData.red],
+                ['orange', circleData.orange]
+            ];
+
+
+            colors.forEach(([name, percentage]) => {
+
+                const rgb =
+                    colorRGB[name];
+
+
+                const weight =
+                    percentage / total;
+
+
+                red +=
+                    rgb[0] * weight;
+
+                green +=
+                    rgb[1] * weight;
+
+                blue +=
+                    rgb[2] * weight;
+
+            });
+
+
+            red =
+                Math.round(red);
+
+            green =
+                Math.round(green);
+
+            blue =
+                Math.round(blue);
+
+
+            return `
+                rgb(
+                    ${red},
+                    ${green},
+                    ${blue}
+                )
+            `;
+        }
+
+
+        // =====================================================
+        // DRAW CIRCLE
+        // =====================================================
+
+        function drawCircle(circleData) {
+
+            // Remove previous circle
+
+            if (circleData.mapCircle) {
+
+                map.removeLayer(
+                    circleData.mapCircle
+                );
+
+            }
+
+
+            const mixedColor =
+                calculateMixedColor(
+                    circleData
+                );
+
+
+            circleData.mapCircle =
+                new Circle(
+                    [
+                        circleData.latitude,
+                        circleData.longitude
+                    ],
+                    {
+                        radius: 5,
+
+                        color: mixedColor,
+
+                        fillColor: mixedColor,
+
+                        fillOpacity: 0.8,
+
+                        weight: 2
+                    }
+                ).addTo(map);
+
+        }
+
+
+        // =====================================================
+        // CREATE CONTROL PANEL
+        // =====================================================
+
+        function createControlPanel(circleData) {
+
+            const container =
+                document.getElementById(
+                    'circleControls'
+                );
+
+
+            const panel =
+                document.createElement('div');
+
+
+            panel.className =
+                'circle-control';
+
+
+            panel.id =
+                `circle-control-${circleData.id}`;
+
+
+            panel.innerHTML = `
+
+                <h3>
+                    Circle ${circleData.id}
+                </h3>
+
+
+                <div class="coordinate-row">
+
+                    <label>
+                        Latitude:
+
+                        <input
+                            type="number"
+                            step="any"
+                            class="latitude"
+                            value="${circleData.latitude}"
+                        >
+
+                    </label>
+
+                </div>
+
+
+                <div class="coordinate-row">
+
+                    <label>
+                        Longitude:
+
+                        <input
+                            type="number"
+                            step="any"
+                            class="longitude"
+                            value="${circleData.longitude}"
+                        >
+
+                    </label>
+
+                </div>
+
+
+                <div class="color-row">
+
+                    <label>
+                        🟡 Yellow:
+
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="yellow"
+                            value="${circleData.yellow}"
+                        >
+
+                        %
+
+                    </label>
+
+                </div>
+
+
+                <div class="color-row">
+
+                    <label>
+                        🟢 Green:
+
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="green"
+                            value="${circleData.green}"
+                        >
+
+                        %
+
+                    </label>
+
+                </div>
+
+
+                <div class="color-row">
+
+                    <label>
+                        🔵 Blue:
+
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="blue"
+                            value="${circleData.blue}"
+                        >
+
+                        %
+
+                    </label>
+
+                </div>
+
+
+                <div class="color-row">
+
+                    <label>
+                        🔴 Red:
+
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="red"
+                            value="${circleData.red}"
+                        >
+
+                        %
+
+                    </label>
+
+                </div>
+
+
+                <div class="color-row">
+
+                    <label>
+                        🟠 Orange:
+
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="orange"
+                            value="${circleData.orange}"
+                        >
+
+                        %
+
+                    </label>
+
+                </div>
+
+
+                <div class="percentage-total">
+
+                    Total:
+                    <span class="total">
+                        100
+                    </span>%
+
+                    <span
+                        class="color-preview"
+                    ></span>
+
+                </div>
+
+
+                <button class="update">
+                    Update Circle
+                </button>
+
+
+                <button class="remove">
+                    Remove Circle
+                </button>
+
+            `;
+
+
+            container.appendChild(
+                panel
+            );
+
+
+            // =================================================
+            // INPUTS
+            // =================================================
+
+            const latitudeInput =
+                panel.querySelector(
+                    '.latitude'
+                );
+
+            const longitudeInput =
+                panel.querySelector(
+                    '.longitude'
+                );
+
+            const yellowInput =
+                panel.querySelector(
+                    '.yellow'
+                );
+
+            const greenInput =
+                panel.querySelector(
+                    '.green'
+                );
+
+            const blueInput =
+                panel.querySelector(
+                    '.blue'
+                );
+
+            const redInput =
+                panel.querySelector(
+                    '.red'
+                );
+
+            const orangeInput =
+                panel.querySelector(
+                    '.orange'
+                );
+
+
+            const totalDisplay =
+                panel.querySelector(
+                    '.total'
+                );
+
+            const colorPreview =
+                panel.querySelector(
+                    '.color-preview'
+                );
+
+
+            // =================================================
+            // UPDATE PREVIEW
+            // =================================================
+
+            function updatePreview() {
+
+                const temporaryData = {
+
+                    yellow:
+                        Number(
+                            yellowInput.value
+                        ),
+
+                    green:
+                        Number(
+                            greenInput.value
+                        ),
+
+                    blue:
+                        Number(
+                            blueInput.value
+                        ),
+
+                    red:
+                        Number(
+                            redInput.value
+                        ),
+
+                    orange:
+                        Number(
+                            orangeInput.value
+                        )
+
+                };
+
+
+                const total =
+                    temporaryData.yellow +
+                    temporaryData.green +
+                    temporaryData.blue +
+                    temporaryData.red +
+                    temporaryData.orange;
+
+
+                totalDisplay.textContent =
+                    total;
+
+
+                if (total === 100) {
+
+                    totalDisplay.className =
+                        'total valid';
+
+                } else {
+
+                    totalDisplay.className =
+                        'total invalid';
+
+                }
+
+
+                colorPreview.style.backgroundColor =
+                    calculateMixedColor(
+                        temporaryData
+                    );
+
+            }
+
+
+            [
+                yellowInput,
+                greenInput,
+                blueInput,
+                redInput,
+                orangeInput
+            ].forEach(input => {
+
+                input.addEventListener(
+                    'input',
+                    updatePreview
+                );
+
+            });
+
+
+            // =================================================
+            // UPDATE CIRCLE
+            // =================================================
+
+            panel
+                .querySelector('.update')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        const latitude =
+                            Number(
+                                latitudeInput.value
+                            );
+
+                        const longitude =
+                            Number(
+                                longitudeInput.value
+                            );
+
+
+                        const yellow =
+                            Number(
+                                yellowInput.value
+                            );
+
+                        const green =
+                            Number(
+                                greenInput.value
+                            );
+
+                        const blue =
+                            Number(
+                                blueInput.value
+                            );
+
+                        const red =
+                            Number(
+                                redInput.value
+                            );
+
+                        const orange =
+                            Number(
+                                orangeInput.value
+                            );
+
+
+                        const total =
+                            yellow +
+                            green +
+                            blue +
+                            red +
+                            orange;
+
+
+                        // Coordinate validation
+
+                        if (
+                            !Number.isFinite(latitude) ||
+                            latitude < -90 ||
+                            latitude > 90
+                        ) {
+
+                            alert(
+                                'Latitude must be between -90 and 90.'
+                            );
+
+                            return;
+                        }
+
+
+                        if (
+                            !Number.isFinite(longitude) ||
+                            longitude < -180 ||
+                            longitude > 180
+                        ) {
+
+                            alert(
+                                'Longitude must be between -180 and 180.'
+                            );
+
+                            return;
+                        }
+
+
+                        // Percentage validation
+
+                        if (total !== 100) {
+
+                            alert(
+                                'The color percentages must add up to exactly 100%.'
+                            );
+
+                            return;
+                        }
+
+
+                        // Save data
+
+                        circleData.latitude =
+                            latitude;
+
+                        circleData.longitude =
+                            longitude;
+
+                        circleData.yellow =
+                            yellow;
+
+                        circleData.green =
+                            green;
+
+                        circleData.blue =
+                            blue;
+
+                        circleData.red =
+                            red;
+
+                        circleData.orange =
+                            orange;
+
+
+                        // Redraw
+
+                        drawCircle(
+                            circleData
+                        );
+
+
+                        // Move map
+
+                        map.setView(
+                            [
+                                latitude,
+                                longitude
+                            ],
+                            18
+                        );
+
+
+                        updatePreview();
+
+                    }
+                );
+
+
+            // =================================================
+            // REMOVE CIRCLE
+            // =================================================
+
+            panel
+                .querySelector('.remove')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        if (
+                            circleData.mapCircle
+                        ) {
+
+                            map.removeLayer(
+                                circleData.mapCircle
+                            );
+
+                        }
+
+
+                        const index =
+                            circles.indexOf(
+                                circleData
+                            );
+
+
+                        if (index !== -1) {
+
+                            circles.splice(
+                                index,
+                                1
+                            );
+
+                        }
+
+
+                        panel.remove();
+
+                    }
+                );
+
+
+            updatePreview();
+
+        }
+
+
+        // =====================================================
+        // ADD CIRCLE
+        // =====================================================
+
+        document
+            .getElementById('addCircle')
+            .addEventListener(
+                'click',
+                () => {
+
+                    circleCounter++;
+
+
+                    const circleData = {
+
+                        id:
+                            circleCounter,
+
+                        latitude:
+                            defaultValues.latitude,
+
+                        longitude:
+                            defaultValues.longitude,
+
+                        yellow:
+                            defaultValues.yellow,
+
+                        green:
+                            defaultValues.green,
+
+                        blue:
+                            defaultValues.blue,
+
+                        red:
+                            defaultValues.red,
+
+                        orange:
+                            defaultValues.orange,
+
+                        mapCircle:
+                            null
+
+                    };
+
+
+                    circles.push(
+                        circleData
+                    );
+
+
+                    createControlPanel(
+                        circleData
+                    );
+
+
+                    drawCircle(
+                        circleData
+                    );
+
+                }
+            );
+
+    </script>
+
+</body>
+</html>
